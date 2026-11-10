@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 import * as Yup from "yup";
 import { Formik, Form, Field } from "formik";
@@ -17,7 +17,7 @@ import Typography from "@material-ui/core/Typography";
 import Paper from "@material-ui/core/Paper";
 import { i18n } from "../../translate/i18n";
 import { MenuItem, FormControl, InputLabel, Select } from "@material-ui/core";
-import { Visibility, VisibilityOff, CloudUpload, CheckCircle, Description } from "@material-ui/icons";
+import { Visibility, VisibilityOff, CloudUpload, CheckCircle, Description, DeleteOutline } from "@material-ui/icons";
 import { InputAdornment, IconButton } from "@material-ui/core";
 import QueueSelectSingle from "../../components/QueueSelectSingle";
 
@@ -68,7 +68,7 @@ const PromptSchema = Yup.object().shape({
     maxTokens: Yup.number().required("Informe o número máximo de tokens"),
     temperature: Yup.number().required("Informe a temperatura"),
     apiKey: Yup.string().required("Informe a Chave de API"),
-    queueId: Yup.number().required("Informe a fila"),
+    queueId: Yup.number().nullable(),
     maxMessages: Yup.number().required("Informe o número máximo de mensagens")
 });
 
@@ -81,6 +81,7 @@ const PromptModal = ({ open, onClose, promptId }) => {
     const [showApiKey2, setShowApiKey2] = useState(false);
     const [uploadingPdf, setUploadingPdf] = useState(false);
     const [pdfFileName, setPdfFileName] = useState("");
+    const fileUploadRef = useRef(null);
 
     const handleToggleApiKey = () => setShowApiKey(!showApiKey);
     const handleToggleApiKey2 = () => setShowApiKey2(!showApiKey2);
@@ -138,7 +139,7 @@ const PromptModal = ({ open, onClose, promptId }) => {
     };
 
     const handlePdfFileChange = async (e, setFieldValue) => {
-        const file = e.target.files[0];
+        const file = e.target && e.target.files && e.target.files[0];
         if (!file) return;
 
         if (!file.name.toLowerCase().endsWith(".pdf")) {
@@ -147,12 +148,14 @@ const PromptModal = ({ open, onClose, promptId }) => {
         }
 
         const formData = new FormData();
-        formData.append("file", file);
         formData.append("typeArch", "prompts");
+        formData.append("file", file);
 
         setUploadingPdf(true);
         try {
-            const { data } = await api.post("/prompt/upload-pdf", formData);
+            const { data } = await api.post("/prompt/upload-pdf", formData, {
+                headers: { "Content-Type": "multipart/form-data" }
+            });
             setFieldValue("knowledgePdf", data.filename);
             setPdfFileName(data.originalName || data.filename);
             toast.success("PDF da Base de Conhecimento anexado com sucesso!");
@@ -160,6 +163,9 @@ const PromptModal = ({ open, onClose, promptId }) => {
             toastError(err);
         } finally {
             setUploadingPdf(false);
+            if (fileUploadRef.current) {
+                fileUploadRef.current.value = null;
+            }
         }
     };
 
@@ -170,10 +176,6 @@ const PromptModal = ({ open, onClose, promptId }) => {
             provider: selectedProvider,
             model: selectedModel
         };
-        if (!values.queueId) {
-            toastError("Informe o setor / fila");
-            return;
-        }
         try {
             if (promptId) {
                 await api.put(`/prompt/${promptId}`, promptData);
@@ -318,39 +320,63 @@ const PromptModal = ({ open, onClose, promptId }) => {
                                 </div>
 
                                 {/* Upload de PDF da Base de Conhecimento */}
-                                <Paper className={classes.pdfUploadBox} elevation={0}>
+                                <Paper
+                                    className={classes.pdfUploadBox}
+                                    elevation={0}
+                                    onDragOver={e => e.preventDefault()}
+                                    onDrop={e => {
+                                        e.preventDefault();
+                                        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+                                            handlePdfFileChange({ target: { files: e.dataTransfer.files } }, setFieldValue);
+                                        }
+                                    }}
+                                >
                                     <Typography variant="subtitle2" style={{ fontWeight: "bold", marginBottom: 8, color: "#2e7d32" }}>
                                         📄 Base de Conhecimento em PDF (Gemini 3.8 Flash)
                                     </Typography>
                                     <Typography variant="body2" color="textSecondary" style={{ marginBottom: 12 }}>
-                                        Suba o PDF com catálogo, regras de preço e dúvidas do seu produto. A IA lerá o documento inteiro!
+                                        Arraste e solte o arquivo PDF aqui ou clique no botão abaixo para selecionar:
                                     </Typography>
 
                                     <input
-                                        accept="application/pdf"
+                                        accept=".pdf,application/pdf"
                                         style={{ display: "none" }}
-                                        id="pdf-upload-button"
+                                        ref={fileUploadRef}
                                         type="file"
                                         onChange={e => handlePdfFileChange(e, setFieldValue)}
                                     />
-                                    <label htmlFor="pdf-upload-button">
-                                        <Button
-                                            variant="contained"
-                                            color="secondary"
-                                            component="span"
-                                            startIcon={uploadingPdf ? <CircularProgress size={20} color="inherit" /> : <CloudUpload />}
-                                            disabled={uploadingPdf}
-                                        >
-                                            {uploadingPdf ? "Enviando PDF..." : "Selecionar Arquivo PDF"}
-                                        </Button>
-                                    </label>
+                                    <Button
+                                        variant="contained"
+                                        color="primary"
+                                        startIcon={uploadingPdf ? <CircularProgress size={20} color="inherit" /> : <CloudUpload />}
+                                        disabled={uploadingPdf}
+                                        onClick={() => {
+                                            if (fileUploadRef.current) {
+                                                fileUploadRef.current.value = null;
+                                                fileUploadRef.current.click();
+                                            }
+                                        }}
+                                    >
+                                        {uploadingPdf ? "Enviando PDF..." : "Selecionar Arquivo PDF"}
+                                    </Button>
 
                                     {pdfFileName && (
-                                        <div style={{ marginTop: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "#1b5e20" }}>
+                                        <div style={{ marginTop: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "#1b5e20", background: "#e8f5e9", padding: "6px 12px", borderRadius: 4 }}>
                                             <CheckCircle style={{ color: "#4caf50", fontSize: 20 }} />
                                             <Typography variant="body2" style={{ fontWeight: 600 }}>
                                                 Arquivo ativo: {pdfFileName}
                                             </Typography>
+                                            <IconButton
+                                                size="small"
+                                                style={{ color: "#d32f2f" }}
+                                                onClick={() => {
+                                                    setFieldValue("knowledgePdf", "");
+                                                    setPdfFileName("");
+                                                }}
+                                                title="Remover PDF"
+                                            >
+                                                <DeleteOutline fontSize="small" />
+                                            </IconButton>
                                         </div>
                                     )}
                                 </Paper>
