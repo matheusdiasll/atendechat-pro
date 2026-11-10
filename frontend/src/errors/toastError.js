@@ -6,51 +6,24 @@ const toastError = err => {
     const errorMsg = err.response?.data?.error;
     if (errorMsg) {
         if (i18n.exists(`backendErrors.${errorMsg}`)) {
-            console.error(`Error: ${i18n.t(`backendErrors.${errorMsg}`)}`);
-            // Optionally log the error to an external service here
-            /*
             toast.error(i18n.t(`backendErrors.${errorMsg}`), {
                 toastId: errorMsg,
-                autoClose: 2000,
-                hideProgressBar: false,
-                closeOnClick: true,
-                pauseOnHover: false,
-                draggable: true,
-                progress: undefined,
-                theme: "light",
+                autoClose: 3000,
             });
-            */
             return;
         } else {
-            console.error(`Error: ${errorMsg}`);
-            // Optionally log the error to an external service here
-            /*
             toast.error(errorMsg, {
                 toastId: errorMsg,
-                autoClose: 2000,
-                hideProgressBar: false,
-                closeOnClick: true,
-                pauseOnHover: false,
-                draggable: true,
-                progress: undefined,
-                theme: "light",
+                autoClose: 3000,
             });
-            */
             return;
         }
-    } if (isString(err)) {
-        console.error(`Error: ${err}`);
-        // Optionally log the error to an external service here
-        /*
+    } else if (isString(err)) {
         toast.error(err);
-        */
         return;
     } else {
-        console.error("An error occurred!");
-        // Optionally log the error to an external service here
-        /*
-        toast.error("An error occurred!");
-        */
+        const msg = err.message || "Ocorreu um erro ao processar a solicitação";
+        toast.error(msg);
         return;
     }
 };

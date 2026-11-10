@@ -153,14 +153,13 @@ const PromptModal = ({ open, onClose, promptId }) => {
 
         setUploadingPdf(true);
         try {
-            const { data } = await api.post("/prompt/upload-pdf", formData, {
-                headers: { "Content-Type": "multipart/form-data" }
-            });
+            const { data } = await api.post("/prompt/upload-pdf", formData);
             setFieldValue("knowledgePdf", data.filename);
             setPdfFileName(data.originalName || data.filename);
             toast.success("PDF da Base de Conhecimento anexado com sucesso!");
         } catch (err) {
-            toastError(err);
+            console.error(err);
+            toast.error(err?.response?.data?.error || err?.message || "Erro ao enviar o PDF");
         } finally {
             setUploadingPdf(false);
             if (fileUploadRef.current) {
